@@ -1,53 +1,42 @@
 package interceptor
 
 import (
-	"sync"
 	"time"
 
+	"github.com/eddyzhou/ratelimit"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 )
 
-var (
-	rateLimiter         *RateLimiter
-	initRateLimiterOnce sync.Once
-)
-
-// Simple and trivial rate limiter.
 type RateLimiter struct {
-	Interval time.Duration
-	MaxCount uint
-
-	mu       sync.Mutex
-	count    uint
-	lastTick time.Time
+	bucket *ratelimit.Bucket
 }
 
-func (r RateLimiter) Allowed() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if time.Since(r.lastTick) > r.Interval {
-		r.lastTick = time.Now()
-		r.count = 0
-		return true
+func NewRateLimiter(fillInterval time.Duration, capacity int64, quantum int64) *RateLimiter {
+	if capacity < 1 {
+		panic("xmiddleware/ratelimit: capacity expects to be positive")
+	}
+	if quantum < 1 {
+		panic("xmiddleware/ratelimit: quantum expects to be positive")
 	}
 
-	r.count++
-	return r.count < r.MaxCount
-}
-
-func InitRateLimiter(rl RateLimiter) {
-	initRateLimiterOnce.Do(func() {
-		rateLimiter = &rl
-	})
-}
-
-func RateLimit(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-	if !rateLimiter.Allowed() {
-		return nil, grpc.Errorf(codes.Internal, "rate limited")
+	return &RateLimiter{
+		bucket: ratelimit.NewBucketWithQuantum(fillInterval, capacity, quantum),
 	}
-	resp, err = handler(ctx, req)
-	return resp, err
+}
+
+func (r *RateLimiter) RateLimit(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	t := r.bucket.Take(1)
+	if t <= 0 {
+		resp, err = handler(ctx, req)
+		return resp, err
+	}
+
+	select {
+	case <-time.After(t):
+		resp, err = handler(ctx, req)
+		return resp, err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }

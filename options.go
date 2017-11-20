@@ -2,36 +2,61 @@ package xmiddleware
 
 import (
 	"time"
-	"xmiddleware/interceptor"
 )
 
 type options struct {
+	mc *monitorConf
+	rc *rateLimitConf
+	tc *throttlerConf
+}
+
+type monitorConf struct {
 	application string
 	port        int
 	sentryDSN   string
-	initMonitor bool
+}
 
-	rateLimiter   interceptor.RateLimiter
-	initRateLimit bool
+type rateLimitConf struct {
+	fillInterval time.Duration
+	capacity     int64
+	quantum      int64
+}
+
+type throttlerConf struct {
+	limit          int
+	backlogLimit   int
+	backlogTimeout time.Duration
 }
 
 type XServerOption func(*options)
 
 func Monitor(application string, port int, sentryDSN string) XServerOption {
 	return func(o *options) {
-		o.application = application
-		o.port = port
-		o.sentryDSN = sentryDSN
-		o.initMonitor = true
+		o.mc = &monitorConf{
+			application: application,
+			port:        port,
+			sentryDSN:   sentryDSN,
+		}
 	}
 }
 
-func RateLimit(interval time.Duration, maxCount uint) XServerOption {
+// quantum tokens are added every fillInterval, up to the given maximum capacity
+func RateLimit(fillInterval time.Duration, capacity int64, quantum int64) XServerOption {
 	return func(o *options) {
-		o.rateLimiter = interceptor.RateLimiter{
-			Interval: interval,
-			MaxCount: maxCount,
+		o.rc = &rateLimitConf{
+			fillInterval: fillInterval,
+			capacity:     capacity,
+			quantum:      quantum,
 		}
-		o.initRateLimit = true
+	}
+}
+
+func Throttler(limit int, backlogLimit int, backlogTimeout time.Duration) XServerOption {
+	return func(o *options) {
+		o.tc = &throttlerConf{
+			limit:          limit,
+			backlogLimit:   backlogLimit,
+			backlogTimeout: backlogTimeout,
+		}
 	}
 }

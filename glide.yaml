@@ -1,0 +1,20 @@
+package: xmiddleware
+import:
+- package: github.com/getsentry/raven-go
+- package: github.com/golang/protobuf
+  subpackages:
+  - jsonpb
+  - proto
+- package: github.com/prometheus/client_golang
+  version: ^0.8.0
+  subpackages:
+  - prometheus
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/grpc
+  version: ^1.2.0
+  subpackages:
+  - codes
+- package: github.com/eddyzhou/log
+- package: github.com/eddyzhou/ratelimit

@@ -3,10 +3,10 @@ package interceptor
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"reflect"
 	"time"
 
+	"github.com/eddyzhou/log"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
